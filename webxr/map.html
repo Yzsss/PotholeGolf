@@ -1,0 +1,193 @@
+<html>
+  <head>
+    <title>PotholeGolfMap</title>
+    <meta name="viewport" content="initial-scale=1.0">
+    <meta charset="utf-8">
+    <meta name='mobile-web-app-capable' content='yes'>
+    <meta name='apple-mobile-web-app-capable' content='yes'>
+    <link rel='stylesheet' href='../css/common.css'>
+    <link href="https://fonts.googleapis.com/css?family=Bebas+Neue|Didact+Gothic&display=swap" rel="stylesheet">
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCg9X3TzYbbdLLOHhtaPGodVNvv9_zbfnU&callback=initMap"
+    async defer></script>
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script type="text/javascript">
+      var map;
+      var socket = io.connect();
+      var markers = [];
+      var request = 0;
+        // {
+        //   coords:{lat:42.3608,lng:-71.0589},
+        // },
+        // {
+        //   coords:{lat:42.3604,lng:-71.0589},
+          
+        // },
+        // {
+        //   coords:{lat:42.3602,lng:-71.0589}
+        // }
+      //
+
+      function initMap() {
+        map = new google.maps.Map(document.getElementById('map'), {
+          //center: {lat: 40.692550, lng: -73.984865},
+          center:{lat:40.69255,lng:-73.984865},
+          zoom: 16
+        });
+      }
+
+      socket.on('connect', function() {
+          console.log("Connected" + socket.id); 
+      });
+
+      socket.on('gpsMarkers', function(data){
+
+        console.log("Receive GPS");
+        markers = data;
+        console.log(markers);
+
+      });
+
+      function connectToServer(){
+        
+          for(var i = 0; i < markers.length;i++){
+          // Add marker
+          addMarker(markers[i]);
+          
+        };
+      }
+      
+    
+
+      function addMarker(props){
+          var marker = new google.maps.Marker({
+          position:props.coords,
+          map:map,
+          icon:'/webxr/golficon.png',
+          });
+      };
+
+      function requestData(){
+
+        socket.emit("requestData", request);
+
+      }
+      
+
+
+      
+      
+
+      
+
+
+      // function sendLocation(){
+
+      //   if (navigator.geolocation) {
+      //     alert("GPS Allowed");
+          
+      //     navigator.geolocation.watchPosition(successCallback, errorCallback, {});
+          
+      //     function successCallback(currentPosition) {
+      //         //alert(currentPosition.coords.latitude);
+          
+      //         var lat = currentPosition.coords.latitude;
+      //         var long = currentPosition.coords.longitude;
+
+      //         //console.log ("latitude:" + lat + "longitude:" + long);
+      //         console.log("latitude:" + lat);
+      //         console.log("longitude:" + long);
+  
+      //         //var mapElem = document.getElementById('map');
+      //         //mapElem.innerHTML = '<img src="http://maps.googleapis.com/maps/api/staticmap?markers=' + lat + ',' + long + '&zoom=20&size=300x300&sensor=false" />';					
+      //     }
+
+      //     function errorCallback(e) {
+      //         alert(e);
+      //     }
+
+      //   } else {
+      //     alert("GPS Not Allowed");
+      //   }
+      // };
+
+		
+
+
+    </script>
+
+    <style>
+      /* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+
+       .button {
+          padding: 0.375rem 0.75rem;
+          margin: 0.2rem;
+          font-size: 1rem;
+          line-height: 1.5;
+          color: white;
+          text-decoration: none;
+          background-color:#F596AA;
+          border: #F4A7B9;
+       }
+
+      #map {
+        height: 450px;
+        width: 90%;
+        margin: 0 auto;
+        padding: 20px;
+        box-shadow: 5px 8px 10px #888888;
+        
+      }
+
+     
+       #title{
+            font-family: 'Bebas Neue', cursive;
+            font-size: 60px;
+            color: white; 
+        }
+
+        #body {
+            background-color: whitesmoke;
+            padding: 0px;
+            height: 600px;
+            width: 100%;
+        }
+
+        #topbar {
+          background-image: linear-gradient(to right, #f78ca0 0%, #f9748f 19%, #fd868c 60%, #fe9a8b 100%);
+            background-position: right bottom, left top;
+            background-repeat: no-repeat, repeat;
+            padding: 0px;
+            height: 150px;
+            width: 100%;
+        }
+
+
+        h1 {
+          padding: 3px;
+          margin: 3px
+        }
+
+        h2 {
+          margin: 10px;
+        }
+
+
+    </style>
+  </head>
+
+
+  <body onload="connectToServer()">
+    <header id ="body">
+      <div id="topbar">
+        <h1><button class="button" onclick="window.location.href='./play.html'">Play</button><button class="button" onclick="requestData();">Map</button></h2>
+        <h2 id="title">Pothole Golf Map</h2>
+      </div>
+    </br>
+      
+      
+      <div id="map"></div>
+    </header>
+  </body>
+</html>

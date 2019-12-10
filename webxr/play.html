@@ -1,0 +1,317 @@
+<!doctype html>
+<!--
+Modified from Immersive Web Samples by Irene Alvarado
+-->
+<html>
+  <head>
+      <meta charset='utf-8'>
+      <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+      <meta name='mobile-web-app-capable' content='yes'>
+      <meta name='apple-mobile-web-app-capable' content='yes'>
+      <link rel='icon' type='image/png' sizes='32x32' href='../favicon-32x32.png'>
+      <link rel='icon' type='image/png' sizes='96x96' href='../favicon-96x96.png'>
+      <link rel='stylesheet' href='../css/common.css'>
+      <link href="https://fonts.googleapis.com/css?family=Bebas+Neue|Didact+Gothic&display=swap" rel="stylesheet">
+      <script src="/socket.io/socket.io.js"></script>
+
+    <title>03 Hit Test</title>
+
+    <script type="module">
+      import {WebXRButton} from '../js/util/webxr-button.js';
+      import {Scene} from '../js/render/scenes/scene.js';
+      import {Renderer, createWebGLContext} from '../js/render/core/renderer.js';
+      import {Node} from '../js/render/core/node.js';
+      import {Gltf2Node} from '../js/render/nodes/gltf2.js';
+      import {vec3} from '../js/render/math/gl-matrix.js';
+      import {Ray} from '../js/render/math/ray.js';
+
+
+      // XR globals.
+      let xrButton = null;
+      let xrRefSpace = null;
+
+      // WebGL scene globals.
+      let gl = null;
+      let renderer = null;
+      let scene = new Scene();
+      scene.enableStats(false);
+
+      let flower = new Gltf2Node({url: '../media/gltf/sunflower/sunflower.gltf'});
+      //let flower = new Gltf2Node({url: '../media/gltf/golffla/flag.gltf'});
+      flower.visible = false;
+
+      // Ensure the background is transparent for AR.
+      scene.clear = false;
+
+      function initXR() {
+        xrButton = new WebXRButton({
+          onRequestSession: onRequestSession,
+          onEndSession: onEndSession,
+          textEnterXRTitle: "START AR",
+          textXRNotFoundTitle: "AR NOT FOUND",
+          textExitXRTitle: "EXIT  AR",
+        });
+        document.querySelector('header').appendChild(xrButton.domElement);
+
+        if (navigator.xr) {
+          navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+            xrButton.enabled = supported;
+          });
+        }
+      }
+
+      function onRequestSession() {
+        return navigator.xr.requestSession('immersive-ar')
+            .then((session) => {
+              xrButton.setSession(session);
+              onSessionStarted(session);
+            });
+      }
+
+      function onSessionStarted(session) {
+        session.addEventListener('end', onSessionEnded);
+        session.addEventListener('select', onSelect);
+
+        if (!gl) {
+          gl = createWebGLContext({
+            xrCompatible: true
+          });
+
+          renderer = new Renderer(gl);
+
+          scene.setRenderer(renderer);
+        }
+
+        session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+
+        session.requestReferenceSpace('local').then((refSpace) => {
+          xrRefSpace = refSpace;
+          session.requestAnimationFrame(onXRFrame);
+        });
+      }
+
+      function onEndSession(session) {
+        session.end();
+        console.log("End");
+      }
+
+      function onSessionEnded(event) {
+        xrButton.setSession(null);
+      }
+
+      function addModel(matrix) {
+          // if we have not rendered the flower even once, then add to scene
+          if (!flower.visible) {
+            flower.visible = true;
+            scene.addNode(flower);
+            sendGPS();
+            console.log("placed");
+            
+          }
+
+          flower.matrix = matrix;
+      }
+
+      let rayOrigin = vec3.create();
+      let rayDirection = vec3.create();
+      function onSelect(event) {
+        // We'll use the target ray from the input source that generated
+        // this event to fire off a new hit test.
+        let targetRayPose = event.frame.getPose(event.inputSource.targetRaySpace, xrRefSpace);
+        if (!targetRayPose) {
+          return;
+        }
+
+        let targetRay = new XRRay(targetRayPose.transform);
+        vec3.set(rayOrigin,
+            targetRay.origin.x,
+            targetRay.origin.y,
+            targetRay.origin.z);
+        vec3.set(rayDirection,
+            targetRay.direction.x,
+            targetRay.direction.y,
+            targetRay.direction.z);
+        event.frame.session.requestHitTest(targetRay, xrRefSpace).then((results) => {
+          if (results.length) {
+            // addARObjectAt(results[0].hitMatrix);
+            addModel(results[0].hitMatrix)
+
+           
+          }
+
+        });
+      }
+
+      // Called every time a XRSession requests that a new frame be drawn.
+      function onXRFrame(t, frame) {
+        let session = frame.session;
+        let pose = frame.getViewerPose(xrRefSpace);
+
+        scene.startFrame();
+
+        session.requestAnimationFrame(onXRFrame);
+
+        scene.drawXRFrame(frame, pose);
+
+        scene.endFrame();
+      }
+
+      // Start the XR application.
+      initXR();
+    </script>
+    <script type="text/javascript">
+
+      let lati;
+      let long;
+      let gps;
+      let socket = io.connect();
+
+
+    //   function connectToServer(){
+    //     socket.on('connect', function() {
+    //       console.log("Connected" + socket.id);    
+    //   });
+    // };
+      // socket.on('gpsMarkers', function(data){
+		  //     console.log("Receive GPS");
+		  // });
+
+
+      // socket.on('gpaMarkers', function(data){
+		  //     console.log("Receive GPS");
+		  //     //markers = data;
+      //   console.log(data);
+      // });
+
+      socket.on('gpsMarkers', function(data){
+
+          console.log("Receive GPS");
+      });
+
+      function allowGPS(){
+
+        if (navigator.geolocation) {
+          
+          navigator.geolocation.watchPosition(successCallback, errorCallback, {});
+          
+          function successCallback(currentPosition) {
+              //alert(currentPosition.coords.latitude);
+              lati = currentPosition.coords.latitude;
+              long = currentPosition.coords.longitude; 
+              console.log("GPS Enabled");
+              console.log(lati);
+              console.log(long);
+          }
+
+          function errorCallback(e) {
+              alert(e);
+          }
+
+        } else {
+          alert("GPS Not Allowed");
+        }
+      };
+
+      function sendGPS(){
+        //console.log("latitude:" + lat);
+        //console.log("longitude:" + long);
+        gps = { coords:{lat:lati,lng:long},};
+
+          if (lati =! null){                     
+              socket.emit("GPS", gps);
+              console.log("gps");
+          } else {
+            console.log("No GPS data");
+          }
+
+      
+      };
+    </script>
+
+    <style>
+      .button {
+          padding: 0.375rem 0.75rem;
+          margin: 0.2rem;
+          font-size: 1rem;
+          line-height: 1.5;
+          color: white;
+          text-decoration: none;
+          background-color:#F596AA;
+          border: #F4A7B9;
+       }
+       
+
+       #title{
+          font-family: 'Bebas Neue', cursive;
+          font-size: 60px;
+          color: white; 
+        }
+
+        #body {
+          background-color: whitesmoke;
+          padding: 0px;
+          height: 600px;
+          width: 100%;
+        }
+
+        #topbar {
+          background-image: linear-gradient(to right, #f78ca0 0%, #f9748f 19%, #fd868c 60%, #fe9a8b 100%);
+          background-position: right bottom, left top;
+          background-repeat: no-repeat, repeat;
+          padding: 0px;
+          height: 150px;
+          width: 100%;
+        }
+
+        #intro {
+          height: 30
+          0px;
+          width: 90%;
+          margin: 0 auto;
+          line-height: 1.5;
+          padding: 20px;
+          box-shadow: 5px 8px 10px #888888;
+      }
+
+        h1 {
+          padding: 3px;
+          margin: 3px
+        }
+
+        h2 {
+          margin: 10px;
+        }
+        /* #sendGPS {
+          display: none;
+        } */
+
+    </style>
+  </head>
+
+  <body>
+    <header id="body">
+        <div id="topbar">
+            <h1><button class="button" onclick="window.location.href='./play.html'">Play</button><button class="button" onclick="window.location.href='./map.html'">Map</button></h2>
+            <h2 id="title">Pothole Golf AR</h2>
+        </div>
+      </br>
+
+      <div id="intro">
+
+        <p>
+          Find a pothole and enjoy Pothole Golf AR!</br> 
+          Share the location of the pothole by allowing GPS!
+        </p>
+          </br>
+        </br>
+      </br>
+    </br>
+  </br>
+    
+        <button id="allowGPS" class="button" onclick="allowGPS();">Allow GPS</button>
+        <button id="sendGPS" class="button" onclick="sendGPS();">Send GPS</button>
+      </div>
+    </br>     
+    </header>   
+  </body>
+</html>
